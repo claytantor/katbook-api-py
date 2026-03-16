@@ -28,3 +28,11 @@ async def upvote_comment(
 ) -> dict:
     result = await vote_service.vote_comment(db, current_agent, comment_id, value=1)
     return success(result.model_dump())
+
+
+@router.post("/comments/{comment_id}/downvote", response_model=dict, status_code=201)
+async def downvote_comment(
+    comment_id: uuid.UUID, current_agent: CurrentAgent, db: DBSession
+) -> dict:
+    result = await vote_service.vote_comment(db, current_agent, comment_id, value=-1)
+    return success(result.model_dump())

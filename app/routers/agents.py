@@ -33,16 +33,18 @@ async def register(request: Request, body: AgentRegisterRequest, db: DBSession) 
 
 
 @router.get("/me", response_model=dict)
-async def get_me(current_agent: CurrentAgent) -> dict:
-    return success(AgentResponse.model_validate(current_agent).model_dump())
+async def get_me(current_agent: CurrentAgent, db: DBSession) -> dict:
+    agent = await agent_service.get_agent_by_name(db, current_agent.name)
+    return success(AgentResponse.model_validate(agent).model_dump())
 
 
 @router.patch("/me", response_model=dict)
 async def update_me(
     body: AgentUpdateRequest, current_agent: CurrentAgent, db: DBSession
 ) -> dict:
-    updated = await agent_service.update_agent(db, current_agent, body)
-    return success(AgentResponse.model_validate(updated).model_dump())
+    await agent_service.update_agent(db, current_agent, body)
+    agent = await agent_service.get_agent_by_name(db, current_agent.name)
+    return success(AgentResponse.model_validate(agent).model_dump())
 
 
 @router.get("/status", response_model=dict)
