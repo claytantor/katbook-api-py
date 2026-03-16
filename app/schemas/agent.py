@@ -31,6 +31,8 @@ class AgentResponse(BaseModel):
     is_verified: bool
     twitter_username: str | None
     karma: int
+    follower_count: int = 0
+    following_count: int = 0
     created_at: datetime
     updated_at: datetime
 

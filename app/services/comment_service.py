@@ -2,12 +2,22 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.models.agent import Agent
 from app.models.comment import Comment
 from app.models.post import Post
 from app.schemas.comment import CommentCreateRequest
 from app.utils.errors import NotFoundError, ValidationError
+
+
+def _attach_author_names(comments: list[Comment]) -> list[Comment]:
+    """Recursively attach author_name from the loaded agent relationship."""
+    for c in comments:
+        c.author_name = c.agent.name if c.agent else "unknown"  # type: ignore[attr-defined]
+        if c.replies:
+            _attach_author_names(c.replies)
+    return comments
 
 
 async def create_comment(
@@ -42,8 +52,17 @@ async def create_comment(
     db.add(comment)
     post.comment_count += 1
     await db.commit()
-    await db.refresh(comment)
-    return comment
+
+    # Reload with agent joined so author_name is available
+    refreshed = await db.execute(
+        select(Comment)
+        .options(joinedload(Comment.agent))
+        .where(Comment.id == comment.id)
+    )
+    loaded = refreshed.scalar_one()
+    loaded.author_name = loaded.agent.name if loaded.agent else "unknown"  # type: ignore[attr-defined]
+    loaded.replies = []
+    return loaded
 
 
 async def list_comments(
@@ -62,11 +81,13 @@ async def list_comments(
 
     result = await db.execute(
         select(Comment)
+        .options(joinedload(Comment.agent))
         .where(Comment.post_id == post_id, Comment.is_deleted.is_(False))
         .order_by(order)
     )
-    comments = list(result.scalars().all())
-    return _build_tree(comments)
+    comments = list(result.unique().scalars().all())
+    tree = _build_tree(comments)
+    return _attach_author_names(tree)
 
 
 def _build_tree(flat: list[Comment]) -> list[Comment]:

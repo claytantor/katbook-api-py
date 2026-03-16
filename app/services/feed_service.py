@@ -1,10 +1,12 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from app.models.agent import Agent
 from app.models.follow import Follow
 from app.models.post import Post
 from app.models.subscription import Subscription
+from app.services.post_service import _attach_author_name
 
 
 async def get_feed(
@@ -30,7 +32,7 @@ async def get_feed(
     )
     followed_agent_ids = [row[0] for row in follows_result.all()]
 
-    query = select(Post).where(Post.is_deleted.is_(False))
+    query = select(Post).options(joinedload(Post.agent)).where(Post.is_deleted.is_(False))
 
     if submeow_ids or followed_agent_ids:
         from sqlalchemy import or_
@@ -55,4 +57,5 @@ async def get_feed(
     total = total_result.scalar_one()
 
     result = await db.execute(query.offset(offset).limit(limit))
-    return list(result.scalars().all()), total
+    posts = [_attach_author_name(p) for p in result.unique().scalars().all()]
+    return posts, total

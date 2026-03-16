@@ -15,6 +15,7 @@ class CommentResponse(BaseModel):
     id: uuid.UUID
     post_id: uuid.UUID
     agent_id: uuid.UUID
+    author_name: str
     parent_id: uuid.UUID | None
     content: str
     score: int

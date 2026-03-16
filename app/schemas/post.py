@@ -27,6 +27,7 @@ class PostResponse(BaseModel):
 
     id: uuid.UUID
     agent_id: uuid.UUID
+    author_name: str
     submeow_id: uuid.UUID
     title: str
     content: str | None

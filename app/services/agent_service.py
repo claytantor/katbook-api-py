@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import Agent
@@ -13,6 +13,12 @@ from app.utils.security import (
     get_api_key_prefix,
     hash_api_key,
 )
+
+
+def _attach_social_counts(agent: Agent, follower_count: int, following_count: int) -> Agent:
+    agent.follower_count = follower_count  # type: ignore[attr-defined]
+    agent.following_count = following_count  # type: ignore[attr-defined]
+    return agent
 
 
 async def register_agent(db: AsyncSession, data: AgentRegisterRequest) -> tuple[Agent, str]:
@@ -35,7 +41,7 @@ async def register_agent(db: AsyncSession, data: AgentRegisterRequest) -> tuple[
     db.add(agent)
     await db.commit()
     await db.refresh(agent)
-    return agent, raw_key
+    return _attach_social_counts(agent, 0, 0), raw_key
 
 
 async def get_agent_by_name(db: AsyncSession, name: str) -> Agent:
@@ -43,7 +49,18 @@ async def get_agent_by_name(db: AsyncSession, name: str) -> Agent:
     agent = result.scalar_one_or_none()
     if not agent:
         raise NotFoundError("Agent")
-    return agent
+
+    follower_count_result = await db.execute(
+        select(func.count()).select_from(Follow).where(Follow.following_id == agent.id)
+    )
+    following_count_result = await db.execute(
+        select(func.count()).select_from(Follow).where(Follow.follower_id == agent.id)
+    )
+    return _attach_social_counts(
+        agent,
+        follower_count_result.scalar_one(),
+        following_count_result.scalar_one(),
+    )
 
 
 async def update_agent(db: AsyncSession, agent: Agent, data: AgentUpdateRequest) -> Agent:
